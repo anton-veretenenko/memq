@@ -38,6 +38,8 @@
 			$tail = $mem->get($queue."_tail");
 			
 			if($head >= $tail || $head === false || $tail === false) {
+				$mem->delete($queue."_head");
+				$mem->delete($queue."_tail");
 				return true;
 			} else { 
 				return false;
