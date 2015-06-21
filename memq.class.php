@@ -1,92 +1,87 @@
 <?php
-	
-	define('MEMQ_POOL', 'localhost:11211');
-	define('MEMQ_TTL', 0);
 
-	class MEMQ {
+	// Fork: https://github.com/anton-veretenenko/memq
+	if (!defined('_MEMCACHE_HOST_') || !defined('_MEMCACHE_PORT_')) {
+		die("No Memcache server defined");
+	}
+	define('MEMQ_TTL', 0); // no expire for queue keys
+
+	class Memq {
 		
-		private static $mem = NULL;
+		private static $mem = null;
 		
 		private function __construct() {}
 		
 		private function __clone() {}
 		
-		private static function getInstance() {
-			if(!self::$mem) self::init();
+		private static function getInstance()
+		{
+			if(!self::$mem) {
+				self::init();
+			}
+
 			return self::$mem;
 		}
 		
-		private static function init() {
+		private static function init()
+		{
 			$mem = new Memcached;
-			$servers = explode(",", MEMQ_POOL);
-			foreach($servers as $server) {
-				list($host, $port) = explode(":", $server);
-				$mem->addServer($host, $port);
-			}
+			$mem->addServer(_MEMCACHE_HOST_, _MEMCACHE_PORT_);
+			
 			self::$mem = $mem;
 		}
 		
-		public static function is_empty($queue) {
+		public static function is_empty($queue)
+		{
 			$mem = self::getInstance();
 			$head = $mem->get($queue."_head");
 			$tail = $mem->get($queue."_tail");
 			
-			if($head >= $tail || $head === FALSE || $tail === FALSE) 
-				return TRUE;
-			else 
-				return FALSE;
+			if($head >= $tail || $head === false || $tail === false) {
+				return true;
+			} else { 
+				return false;
+			}
 		}
 
-		public static function dequeue($queue, $after_id=FALSE, $till_id=FALSE) {
+		public static function dequeue($queue)
+		{
 			$mem = self::getInstance();
-			
-			if($after_id === FALSE && $till_id === FALSE) {
-				$tail = $mem->get($queue."_tail");
-				if(($id = $mem->increment($queue."_head")) === FALSE) 
-					return FALSE;
-			
-				if($id <= $tail) {
-					return $mem->get($queue."_".($id-1));
-				}
-				else {
-					$mem->decrement($queue."_head");
-					return FALSE;
-				}
+
+			$tail = $mem->get($queue."_tail");
+			if(($id = $mem->increment($queue."_head")) === false) {
+				return false;
 			}
-			else if($after_id !== FALSE && $till_id === FALSE) {
-				$till_id = $mem->get($queue."_tail");	
+
+			if($id <= $tail) {
+				return $mem->get($queue."_".($id-1));
+			} else {
+				$mem->decrement($queue."_head");
+				return false;
 			}
-			
-			$item_keys = array();
-			for($i=$after_id+1; $i<=$till_id; $i++) 
-				$item_keys[] = $queue."_".$i;
-			$null = NULL;
-			
-			return $mem->getMulti($item_keys, $null, Memcached::GET_PRESERVE_ORDER); 
 		}
 		
 		public static function enqueue($queue, $item) {
 			$mem = self::getInstance();
 			
 			$id = $mem->increment($queue."_tail");
-			if($id === FALSE) {
-				if($mem->add($queue."_tail", 1, MEMQ_TTL) === FALSE) {
+			if($id === false) {
+				if($mem->add($queue."_tail", 1, MEMQ_TTL) === false) {
 					$id = $mem->increment($queue."_tail");
-					if($id === FALSE) 
-						return FALSE;
-				}
-				else {
+					if($id === false) {
+						return false;
+					}
+				} else {
 					$id = 1;
 					$mem->add($queue."_head", $id, MEMQ_TTL);
 				}
 			}
 			
-			if($mem->add($queue."_".$id, $item, MEMQ_TTL) === FALSE) 
-				return FALSE;
+			if($mem->add($queue."_".$id, $item, MEMQ_TTL) === false) {
+				return false;
+			}
 			
 			return $id;
 		}
 		
 	}
-
-?>
