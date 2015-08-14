@@ -79,7 +79,7 @@
 				}
 			}
 			
-			if($mem->add($queue."_".$id, $item, MEMQ_TTL) === false) {
+			if($mem->set($queue."_".$id, $item, MEMQ_TTL) === false) {
 				return false;
 			}
 			
